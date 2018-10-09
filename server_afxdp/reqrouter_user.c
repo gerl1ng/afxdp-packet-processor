@@ -53,7 +53,6 @@
 
 #define NUM_FRAMES 131072
 #define FRAME_HEADROOM 0
-#define FRAME_SHIFT 11
 #define FRAME_SIZE 2048
 #define NUM_DESCS 1024
 #define BATCH_SIZE 16
@@ -114,10 +113,6 @@ struct xdpsock {
 	int sfd;
 	struct xdp_umem *umem;
 	u32 outstanding_tx;
-	unsigned long rx_npkts;
-	unsigned long tx_npkts;
-	unsigned long prev_rx_npkts;
-	unsigned long prev_tx_npkts;
 };
 
 struct xdpsock *xsks[PORT_RANGE_UPPER];
@@ -206,28 +201,6 @@ static inline u32 xq_nb_avail(struct xdp_uqueue *q, u32 ndescs)
 	}
 
 	return (entries > ndescs) ? ndescs : entries;
-}
-
-static inline int umem_fill_to_kernel_ex(struct xdp_umem_uqueue *fq,
-					 struct xdp_desc *d,
-					 size_t nb)
-{
-	u32 i;
-
-	if (umem_nb_free(fq, nb) < nb)
-		return -ENOSPC;
-
-	for (i = 0; i < nb; i++) {
-		u32 idx = fq->cached_prod++ & fq->mask;
-
-		fq->ring[idx] = d[i].addr;
-	}
-
-	u_smp_wmb();
-
-	*fq->producer = fq->cached_prod;
-
-	return 0;
 }
 
 static inline int umem_fill_to_kernel(struct xdp_umem_uqueue *fq, u64 *d,
@@ -348,7 +321,7 @@ static bool swap_header(void *data, u64 l)
 	u32 ip_tmp = iph->saddr;
 	iph->saddr = iph->daddr;
 	iph->daddr = ip_tmp;
-	//Checksum stays the same
+	//Checksum stays the same. Change of length requires recalculation
 	offset += sizeof(*iph);
 
 	//UDP-Header (Ports)
@@ -618,7 +591,6 @@ static inline void complete_tx(struct xdpsock *xsk)
 	if (rcvd > 0) {
 		umem_fill_to_kernel(&xsk->umem->fq, descs, rcvd);
 		xsk->outstanding_tx -= rcvd;
-		xsk->tx_npkts += rcvd;
 	}
 }
 
@@ -642,6 +614,7 @@ static void * requestHandler(void *arg)
 	struct sock_port *sp = (struct sock_port*) arg;
 	struct xdp_desc descs[BATCH_SIZE];
 	unsigned int rcvd, i;
+	char *pkt = NULL;
 
 	function func = get_function(*sp->port);
 	if (func == NULL) {
@@ -674,7 +647,7 @@ static void * requestHandler(void *arg)
 
 		// Execute the function for every packet 
 		for (i = 0; i < rcvd; i++) {
-			char *pkt = xq_get_data(sp->xsk, descs[i].addr);
+			pkt = xq_get_data(sp->xsk, descs[i].addr);
 
 #if DEBUG_HEXDUMP
 			fprintf(stdout, "Port %d: ", *sp->port);
@@ -693,12 +666,8 @@ static void * requestHandler(void *arg)
 			}
 		}
 		
-		// Increase the packet counter
-		sp->xsk->rx_npkts += rcvd;
-
 		// Back to the Kernel by TX
 		ret = xq_enq(&sp->xsk->tx, descs, rcvd);
-		
 		lassert(ret == 0);
 		sp->xsk->outstanding_tx += rcvd;
 		// Complete the TX
@@ -719,12 +688,9 @@ int main(int argc, char **argv)
 	struct bpf_map *map;
 	int t, q, p, pqt, key = 0, ret;
 	int ports[] = {1232};
-	//int ports[] = {1232, 2336, 3456};
 	int len_ports = (sizeof(ports) / sizeof(ports[0]));
 	struct sock_port *sp = NULL;
 	
-//	int num_cpus = get_nprocs();
-//	pthread_t pt[num_cpus];
 	pthread_t pt[PORT_RANGE_UPPER];
 	
 	parse_command_line(argc, argv);
