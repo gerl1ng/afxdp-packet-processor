@@ -118,9 +118,9 @@ struct xdpsock {
 struct xdpsock *xsks[PORT_RANGE_UPPER];
 
 struct sock_port{
-	struct xdpsock *xsk;
+	struct xdpsock **xsks;
+	int *ports;
 	int length;
-	int *port;
 	int id;
 };
 
@@ -613,66 +613,69 @@ static void * requestHandler(void *arg)
 	int timeout = 1000, ret = 0;
 	struct sock_port *sp = (struct sock_port*) arg;
 	struct xdp_desc descs[BATCH_SIZE];
-	unsigned int rcvd, i;
+	unsigned int rcvd, i, l;
 	char *pkt = NULL;
-
-	function func = get_function(*sp->port);
-	if (func == NULL) {
-		fprintf(stderr, "No Function defined...\n");
-		return NULL;
+	function func[sp->length];
+	struct pollfd pfd[sp->length];
+	memset(&pfd, 0, sizeof(pfd));
+	for (l = 0; l < sp->length; l++) {
+		func[l] = get_function(sp->ports[l]);
+		if (func == NULL) {
+			fprintf(stderr, "No Function defined...\n");
+			return NULL;
+		}
+		pfd[l].fd = sp->xsks[l]->sfd;
+		pfd[l].events = POLLIN;
 	}
 
-	struct pollfd pfd;
-	memset(&pfd, 0, sizeof(pfd));
-
-	pfd.fd = sp->xsk->sfd;
-	pfd.events = POLLIN;
-
 	for (;;) {
-		// Poll for new data
-		if (opt_poll) {
-			pfd.revents = 0;
-			ret = poll(&pfd, 1, timeout);
+		if (opt_poll) { // Poll new data
+			ret = poll(pfd, sp->length, timeout);
 			if (ret <= 0) {
-				fprintf(stdout, "Timeout(%d) %d:\n", sp->id, *sp->port);
+				fprintf(stdout, "Timeout(%d)\n", sp->id);
 				fflush(stdout);
 				continue;
 			}
 		}
 
+		for (l = 0; l < sp->length; l++) {
+			if (opt_poll && pfd[l].revents == 0)
+				continue;
+			rcvd = xq_deq(&sp->xsks[l]->rx, descs, BATCH_SIZE);
+			if (rcvd == 0)
+				continue;
 
-		rcvd = xq_deq(&sp->xsk->rx, descs, BATCH_SIZE);
-		if (rcvd == 0)
-			continue;
-
-		// Execute the function for every packet 
-		for (i = 0; i < rcvd; i++) {
-			pkt = xq_get_data(sp->xsk, descs[i].addr);
+			// Execute the function for every packet 
+			for (i = 0; i < rcvd; i++) {
+				pkt = xq_get_data(sp->xsks[l], descs[i].addr);
 
 #if DEBUG_HEXDUMP
-			fprintf(stdout, "Port %d: ", *sp->port);
-			hex_dump(pkt, descs[i].len, descs[i].addr);
-			fflush(stdout);
+				fprintf(stdout, "Port %d: ", sp->ports[l]);
+				hex_dump(pkt, descs[i].len, descs[i].addr);
+				fflush(stdout);
 #endif
-			// Swap ETH, IP and UDP header
-			if (!swap_header(pkt, descs[i].len)) {
-				fprintf(stderr, "Port %d: Header to short\n", *sp->port);
-				continue;
-			}
+				// Swap ETH, IP and UDP header
+				if (!swap_header(pkt, descs[i].len)) {
+					fprintf(stderr, "Port %d: Header to short\n", sp->ports[l]);
+					continue;
+				}
 
-			if (!(*func)(pkt, &descs[i].len, header_length)) {
-				fprintf(stderr, "Port %d: Function failed\n", *sp->port);
-				continue;
+				if (!(*func[l])(pkt, &descs[i].len, header_length)) {
+					fprintf(stderr, "Port %d: Function failed\n", sp->ports[l]);
+					continue;
+				} // Todo: Calculate checksum if length changed
 			}
-		}
 		
-		// Back to the Kernel by TX
-		ret = xq_enq(&sp->xsk->tx, descs, rcvd);
-		lassert(ret == 0);
-		sp->xsk->outstanding_tx += rcvd;
-		// Complete the TX
-		complete_tx(sp->xsk);
+			// Back to the Kernel by TX
+			ret = xq_enq(&sp->xsks[l]->tx, descs, rcvd);
+			lassert(ret == 0);
+			sp->xsks[l]->outstanding_tx += rcvd;
+			// Complete the TX
+			complete_tx(sp->xsks[l]);
+		}
 	}
+	free(sp->xsks);
+	free(sp->ports);
 	free(sp);
 }
 
@@ -770,10 +773,12 @@ int main(int argc, char **argv)
 
 				// Configure and start the consumer thread
 				sp = malloc(sizeof(struct sock_port));
-				(*sp).xsk = xsks[pqt];
-				(*sp).port = &ports[p];
-				(*sp).id = pqt;
 				(*sp).length = 1;
+				(*sp).xsks = malloc(sizeof(struct xdpsock *) * (*sp).length);
+				(*sp).xsks[0] = xsks[pqt];
+				(*sp).ports = malloc(sizeof(int) * (*sp).length);
+				(*sp).ports[0] = ports[p];
+				(*sp).id = pqt;
 				pthread_create(&pt[pqt], NULL, requestHandler, sp);
 				fprintf(stdout, "Socket %d created\n", pqt);
 				
