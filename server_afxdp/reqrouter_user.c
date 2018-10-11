@@ -754,7 +754,7 @@ int main(int argc, char **argv)
 	fprintf(stdout, "Let's create Sockets!\n");
 
 	/* Create sockets... */
-	for (p = 0; p < len_ports; p++) { // p -> ports
+	for (p = 0; p < len_ports; p++) { // ports[p] -> port
 		for (q = 0; q < opt_queues; q++) { // q -> queue
 			for (t = 0; t < opt_threads; t++) { // t -> thread
 				pqt = create_socket(ports[p], q, t);
@@ -784,9 +784,9 @@ int main(int argc, char **argv)
 				
 				if (t == 0) {
 					// Set the number of threads per queue
-					ret = bpf_map_update_elem(num_socks_map, &ports[p], &opt_threads, 0);
+					ret = bpf_map_update_elem(num_socks_map, &pqt, &opt_threads, 0);
 					if (ret) {
-						fprintf(stderr, "Error: bpf_map_update_elem %d\n", ports[p]);
+						fprintf(stderr, "Error: bpf_map_update_elem %d\n", pqt);
 						fprintf(stderr, "ERRNO: %d\n", errno);
 						fprintf(stderr, strerror(errno));
 						exit(EXIT_FAILURE);
@@ -799,7 +799,7 @@ int main(int argc, char **argv)
 	// Set the number of queues
 	ret = bpf_map_update_elem(num_queues_map, &key, &opt_queues, 0);
 	if (ret) {
-		fprintf(stderr, "Error: bpf_map_update_elem %d\n", 0);
+		fprintf(stderr, "Error: bpf_map_update_elem\n");
 		fprintf(stderr, "ERRNO: %d\n", errno);
 		fprintf(stderr, strerror(errno));
 		exit(EXIT_FAILURE);

@@ -34,7 +34,7 @@ struct bpf_map_def SEC("maps") num_queues_map = {
 };
 
 struct bpf_map_def SEC("maps") rr_map = {
-	.type = BPF_MAP_TYPE_ARRAY,
+	.type = BPF_MAP_TYPE_PERCPU_ARRAY,
 	.key_size = sizeof(unsigned int),
 	.value_size = sizeof(uint16_t),
 	.max_entries = PORT_RANGE_UPPER,
