@@ -1,0 +1,34 @@
+---
+- name: Create Prometheus User
+  user:
+    name: prometheus
+- name: Extract Prometheus
+  unarchive:
+    src: /opt/repo/prometheus-2.4.0.linux-amd64.tar.gz
+    dest: /opt/
+- name: Create Link
+  file:
+    src: /opt/prometheus-2.4.0.linux-amd64
+    dest: /opt/prometheus 
+    state: link
+- name: Configure
+  copy:
+    src: ../files/prometheus.yml
+    dest: /opt/prometheus/prometheus.yml
+- name: Set Owner and Permissions
+  file:
+    path: /opt/prometheus-2.4.0.linux-amd64
+    owner: prometheus
+    group: prometheus
+    recurse: yes
+    state: directory
+- name: Create the service
+  copy:
+    src: ../files/prometheus.service
+    dest: /usr/lib/systemd/system/prometheus.service
+- name: Activate Service
+  systemd:
+    name: prometheus
+    state: restarted
+    enabled: yes
+    daemon_reload: yes

@@ -1,0 +1,15 @@
+# -*- mode: conf -*-
+
+[Unit]
+Description=Grafana - The open platform for beautiful analytics and monitoring
+Documentation=https://grafana.com/
+After=network.target
+
+[Service]
+User=grafana
+WorkingDirectory=/opt/grafana
+ExecStart=/opt/grafana/bin/grafana-server
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,50 @@
+---
+- name: Create Grafana User
+  user:
+    name: grafana
+- name: Grafana
+  unarchive:
+    src: /opt/repo/grafana-5.2.4.linux-x64.tar.gz
+    dest: /opt/
+- name: Create Link
+  file:
+    src: /opt/grafana-5.2.4
+    dest: /opt/grafana
+    state: link
+- name: Set Owner and Permissions
+  file:
+    path: /opt/grafana-5.2.4
+    owner: grafana
+    group: grafana
+    recurse: yes
+    state: directory
+- name: Create Data Path
+  file:
+    path: /var/lib/grafana
+    owner: grafana
+    group: grafana
+    recurse: yes
+    state: directory
+- name: Create Log Path
+  file:
+    path: /var/log/grafana
+    owner: grafana
+    group: grafana
+    recurse: yes
+    state: directory
+- name: Create Plugin Path
+  file:
+    path: /var/lib/grafana/plugins
+    owner: grafana
+    group: grafana
+    state: directory
+- name: Create the service
+  copy:
+    src: ../files/grafana-server.service
+    dest: /usr/lib/systemd/system/grafana-server.service
+- name: Activate Service
+  systemd:
+    name: grafana-server
+    state: restarted
+    enabled: yes
+    daemon_reload: yes

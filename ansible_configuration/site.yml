@@ -1,0 +1,17 @@
+---
+- hosts: mm
+  roles:
+  - role: filerepo
+    become: yes
+    become_user: root
+  - role: prometheus
+    become: yes
+    become_user: root
+  - role: grafana
+    become: yes
+    become_user: root
+- hosts: all
+  roles:
+  - role: prometheus-node-exporter
+    become: yes
+    become_user: root

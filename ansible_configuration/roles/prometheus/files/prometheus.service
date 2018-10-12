@@ -1,0 +1,15 @@
+# -*- mode: conf -*-
+
+[Unit]
+Description=Prometheus Time-Series Database
+Documentation=https://prometheus.io
+After=network.target
+
+[Service]
+User=prometheus
+WorkingDirectory=/opt/prometheus
+ExecStart=/opt/prometheus/prometheus
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

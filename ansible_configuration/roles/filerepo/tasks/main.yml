@@ -1,0 +1,17 @@
+---
+- name: Create Folder
+  file:
+    path: /opt/repo 
+    state: directory
+- name: Load Prometheus
+  get_url:
+    url: https://github.com/prometheus/prometheus/releases/download/v2.4.0/prometheus-2.4.0.linux-amd64.tar.gz
+    dest: /opt/repo/prometheus-2.4.0.linux-amd64.tar.gz
+- name: Load Prometheus Node-Exporter
+  get_url:
+    url: https://github.com/prometheus/node_exporter/releases/download/v0.16.0/node_exporter-0.16.0.linux-amd64.tar.gz
+    dest: /opt/repo/node_exporter-0.16.0.linux-amd64.tar.gz
+- name: Load Grafana
+  get_url:
+    url: https://s3-us-west-2.amazonaws.com/grafana-releases/release/grafana-5.2.4.linux-amd64.tar.gz 
+    dest: /opt/repo/grafana-5.2.4.linux-x64.tar.gz

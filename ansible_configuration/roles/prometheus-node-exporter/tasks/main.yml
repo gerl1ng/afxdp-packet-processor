@@ -1,0 +1,31 @@
+---
+- name: Create Prometheus User
+  user:
+    name: prometheus
+- name: Extract Prometheus Node Exporter
+  unarchive:
+    src: /opt/repo/node_exporter-0.16.0.linux-amd64.tar.gz
+    copy: true
+    dest: /opt/
+- name: Create Link
+  file:
+    src: /opt/node_exporter-0.16.0.linux-amd64
+    dest: /opt/node_exporter 
+    state: link
+- name: Set Owner and Permissions
+  file:
+    path: /opt/node_exporter-0.16.0.linux-amd64
+    owner: prometheus
+    group: prometheus
+    recurse: yes
+    state: directory
+- name: Create the service
+  copy:
+    src: ../files/node_exporter.service
+    dest: /usr/lib/systemd/system/node_exporter.service
+- name: Activate Service
+  systemd:
+    name: node_exporter
+    state: restarted
+    enabled: yes
+    daemon_reload: yes
