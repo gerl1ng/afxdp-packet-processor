@@ -40,8 +40,9 @@ CFLAGS += -I$(KERNEL)tools/perf/include
 OBJECT_BPF     = $(KERNEL)tools/lib/bpf/bpf.o
 OBJECT_BTF     = $(KERNEL)tools/lib/bpf/btf.o
 OBJECT_LIBBPF  = $(KERNEL)tools/lib/bpf/libbpf.o
+OBJECT_BPFSTR  = $(KERNEL)tools/lib/bpf/str_error.o
 OBJECT_NLATTR  = $(KERNEL)tools/lib/bpf/nlattr.o
-OBJECTS = $(OBJECT_BPF) $(OBJECT_BTF) $(OBJECT_LIBBPF) $(OBJECT_NLATTR)
+OBJECTS = $(OBJECT_BPF) $(OBJECT_BTF) $(OBJECT_LIBBPF) $(OBJECT_BPFSTR) $(OBJECT_NLATTR)
 
 all: $(KERN_OBJ) $(BINARY)
 
